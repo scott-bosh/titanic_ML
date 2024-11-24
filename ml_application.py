@@ -11,7 +11,7 @@ import xgboost as xgb
 class TitanicEnsemble:
     def __init__(self):
         self.scaler = StandardScaler()
-        self.label_encoder = LabelEncoder()
+        self.label_encoders = {}
         self.imputer = SimpleImputer(strategy='median')
         
     def extract_title(self, name):
@@ -36,27 +36,35 @@ class TitanicEnsemble:
         # Create is_alone feature
         data['IsAlone'] = (data['FamilySize'] == 1).astype(int)
         
+        # Handle missing values in Fare
+        data['Fare'] = data['Fare'].fillna(data['Fare'].median())
+        
         # Create fare bins
         data['FareBin'] = pd.qcut(data['Fare'], 4, labels=['Low', 'Mid', 'Mid-High', 'High'])
         
-        # Create age bins
+        # Handle missing values in Age
         data['Age'] = self.imputer.fit_transform(data[['Age']])
         data['AgeBin'] = pd.cut(data['Age'], 5, labels=['Child', 'Young', 'Adult', 'Middle', 'Senior'])
         
         # Handle cabin information
         data['HasCabin'] = data['Cabin'].notna().astype(int)
         
+        # Handle missing values in Embarked
+        data['Embarked'] = data['Embarked'].fillna(data['Embarked'].mode()[0])
+        
         # Encode categorical variables
-        categorical_features = ['Sex', 'Embarked', 'Title', 'FareBin', 'AgeBin']
+        categorical_features = ['Sex', 'Embarked', 'Title', 'AgeBin']
         for feature in categorical_features:
             if is_training:
-                data[feature] = self.label_encoder.fit_transform(data[feature].fillna('Missing'))
+                if feature not in self.label_encoders:
+                    self.label_encoders[feature] = LabelEncoder()
+                data[feature] = self.label_encoders[feature].fit_transform(data[feature])
             else:
-                data[feature] = self.label_encoder.transform(data[feature].fillna('Missing'))
+                data[feature] = self.label_encoders[feature].transform(data[feature])
         
         # Select features for modeling
         features = ['Pclass', 'Sex', 'Age', 'FamilySize', 'Fare', 'IsAlone', 
-                   'HasCabin', 'Title', 'Embarked', 'AgeBin', 'FareBin']
+                   'HasCabin', 'Title', 'Embarked', 'AgeBin']
         
         X = data[features]
         
